@@ -14,6 +14,7 @@ def train(batch_size, seed_size, filters, context):
     net_g = Generator(filters)
     net_d = Discriminator(filters)
     loss = mx.gluon.loss.SigmoidBinaryCrossEntropyLoss()
+    metric = mx.metric.CustomMetric(lambda label, pred: ((pred > 0.5) == label).mean())
 
     if os.path.isfile("model/toy_gan.ckpt"):
         with open("model/toy_gan.ckpt", "r") as f:
@@ -33,8 +34,7 @@ def train(batch_size, seed_size, filters, context):
         net_g.initialize(mx.init.Xavier(), ctx=context)
         net_d.initialize(mx.init.Xavier(), ctx=context)
 
-    print("Learning rate:", learning_rate)
-
+    print("Learning rate:", learning_rate, flush=True)
     trainer_g = mx.gluon.Trainer(net_g.collect_params(), "Adam", {
         "learning_rate": learning_rate,
         "clip_gradient": 5.0
@@ -54,10 +54,10 @@ def train(batch_size, seed_size, filters, context):
         training_L = 0.0
         training_batch = 0
         training_set.reset()
+        metric.reset()
 
         for batch in training_set:
             training_batch += 1
-            batch_L = 0.0
 
             real = batch.data[0].as_in_context(context)
             seeds = mx.nd.random_normal(shape=(batch_size, seed_size, 1, 1), ctx=context)
@@ -65,14 +65,16 @@ def train(batch_size, seed_size, filters, context):
             with mx.autograd.record():
                 real_y = net_d(real)
                 real_L = loss(real_y, real_label)
+                metric.update([real_label], [real_y])
                 fake = net_g(seeds)
                 fake_y = net_d(fake.detach())
                 fake_L = loss(fake_y, fake_label)
+                metric.update([fake_label], [fake_y])
                 L = real_L + fake_L
                 L.backward()
             trainer_d.step(batch_size)
-            batch_L += mx.nd.mean(L).asscalar()
-            if batch_L != batch_L:
+            dis_L = mx.nd.mean(L).asscalar()
+            if dis_L != dis_L:
                 raise ValueError()
 
             with mx.autograd.record():
@@ -80,23 +82,21 @@ def train(batch_size, seed_size, filters, context):
                 L = loss(y, real_label)
                 L.backward()
             trainer_g.step(batch_size)
-            batch_L += mx.nd.mean(L).asscalar()
-            if batch_L != batch_L:
+            gen_L = mx.nd.mean(L).asscalar()
+            if gen_L != gen_L:
                 raise ValueError()
                 
-            training_L += batch_L
-            print("[Epoch %d  Batch %d]  batch_loss %.10f  average_loss %.10f  elapsed %.2fs" %
-                (epoch, training_batch, batch_L, training_L / training_batch, time.time() - ts), flush=True)
+            training_L += dis_L + gen_L
+            print("[Epoch %d  Batch %d]  dis_loss %.10f  gen_loss %.10f  average_loss %.10f  elapsed %.2fs" % (
+                epoch, training_batch, dis_L, gen_L, training_L / training_batch, time.time() - ts
+            ), flush=True)
 
         epoch += 1
-
         avg_L = training_L / training_batch
-        print("[Epoch %d]  learning_rate %.10f  training_loss %.10f  epochs_no_progress %d  duration %.2fs" % (
-            epoch,
-            learning_rate,
-            training_L / training_batch,
-            epochs_no_progress,
-            time.time() - ts
+        _, accuracy = metric.get()
+
+        print("[Epoch %d]  learning_rate %.10f  training_loss %.10f  accuracy %.10f  epochs_no_progress %d  duration %.2fs" % (
+            epoch, learning_rate, avg_L, accuracy, epochs_no_progress, time.time() - ts
         ), flush=True)
 
         if avg_L < best_L:
@@ -106,7 +106,7 @@ def train(batch_size, seed_size, filters, context):
             net_d.save_parameters("model/toy_gan.discriminator.params")
             with open("model/toy_gan.ckpt", "a") as f:
                 f.write("%d %.10f %.10f %d\n" % (epoch, best_L, learning_rate, epochs_no_progress))
-        elif epochs_no_progress < 2:
+        elif epochs_no_progress < 10:
             epochs_no_progress += 1
         else:
             epochs_no_progress = 0
