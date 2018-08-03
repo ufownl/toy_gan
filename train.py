@@ -33,6 +33,7 @@ def train(batch_size, seed_size, filters, context):
         net_g.initialize(mx.init.Xavier(), ctx=context)
         net_d.initialize(mx.init.Xavier(), ctx=context)
 
+    print("Learning rate:", learning_rate)
 
     trainer_g = mx.gluon.Trainer(net_g.collect_params(), "Adam", {
         "learning_rate": learning_rate,
