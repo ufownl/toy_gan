@@ -83,6 +83,7 @@ def train(max_epochs, learning_rate, threshold, batch_size, seed_size, filters, 
                 fake_L = loss(fake_y, fake_label)
                 metric.update([fake_label], [fake_y])
                 L = real_L + fake_L
+            _, accuracy = metric.get()
             dis_L = mx.nd.mean(L).asscalar()
             if dis_L != dis_L:
                 raise ValueError()
@@ -97,12 +98,11 @@ def train(max_epochs, learning_rate, threshold, batch_size, seed_size, filters, 
                 raise ValueError()
                 
             training_L += dis_L + gen_L
-            print("[Epoch %d  Batch %d]  dis_loss %.10f  gen_loss %.10f  average_loss %.10f  elapsed %.2fs" % (
-                epoch, training_batch, dis_L, gen_L, training_L / training_batch, time.time() - ts
+            print("[Epoch %d  Batch %d]  dis_loss %.10f  gen_loss %.10f  average_loss %.10f  accuracy %.10f  elapsed %.2fs" % (
+                epoch, training_batch, dis_L, gen_L, training_L / training_batch, accuracy, time.time() - ts
             ), flush=True)
 
         avg_L = training_L / training_batch
-        _, accuracy = metric.get()
 
         print("[Epoch %d]  training_loss %.10f  accuracy %.10f  duration %.2fs" % (
             epoch, avg_L, accuracy, time.time() - ts

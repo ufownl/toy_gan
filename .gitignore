@@ -105,6 +105,7 @@ venv.bak/
 
 # model files
 *.params
+*.state
 
 # check-point files
 *.ckpt
