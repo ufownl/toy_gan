@@ -103,9 +103,8 @@ def train(max_epochs, learning_rate, threshold, batch_size, seed_size, filters, 
             ), flush=True)
 
         avg_L = training_L / training_batch
-
         print("[Epoch %d]  training_loss %.10f  accuracy %.10f  duration %.2fs" % (
-            epoch, avg_L, accuracy, time.time() - ts
+            epoch + 1, avg_L, accuracy, time.time() - ts
         ), flush=True)
 
         net_g.save_parameters("model/toy_gan.generator.params")
