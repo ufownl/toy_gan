@@ -11,7 +11,7 @@ def test(batch_size, seed_size, filters, context):
     net_g = Generator(filters)
     net_g.load_parameters("model/toy_gan.generator.params", ctx=context)
 
-    seeds = mx.nd.random_normal(shape=(batch_size, seed_size, 1, 1))
+    seeds = mx.nd.random_normal(shape=(batch_size, seed_size, 1, 1), ctx=context)
     imgs = net_g(seeds)
     print(imgs)
     for i in range(imgs.shape[0]):
