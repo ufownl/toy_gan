@@ -63,11 +63,11 @@ class WassersteinLoss(mx.gluon.loss.Loss):
     def __init__(self, batch_axis=0, **kwargs):
         super(WassersteinLoss, self).__init__(None, batch_axis, **kwargs)
 
-    def hybrid_forward(self, F, g, r=None):
-        if r is None:
-            return F.mean(-g, axis=self._batch_axis, exclude=True)
+    def hybrid_forward(self, F, fake_y, real_y=None):
+        if real_y is None:
+            return F.mean(-fake_y, axis=self._batch_axis, exclude=True)
         else:
-            return F.mean(g - r, axis=self._batch_axis, exclude=True)
+            return F.mean(fake_y - real_y, axis=self._batch_axis, exclude=True)
 
 
 if __name__ == "__main__":
