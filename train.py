@@ -26,10 +26,10 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, lmda, conte
         net_d.initialize(mx.init.Xavier(), ctx=context)
 
     print("Learning rate:", learning_rate, flush=True)
-    trainer_g = mx.gluon.Trainer(net_g.collect_params(), "RMSProp", {
+    trainer_g = mx.gluon.Trainer(net_g.collect_params(), "Adam", {
         "learning_rate": learning_rate
     })
-    trainer_d = mx.gluon.Trainer(net_d.collect_params(), "RMSProp", {
+    trainer_d = mx.gluon.Trainer(net_d.collect_params(), "Adam", {
         "learning_rate": learning_rate
     })
 
