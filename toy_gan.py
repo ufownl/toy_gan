@@ -59,12 +59,28 @@ class Discriminator(mx.gluon.nn.Block):
         return y.reshape((-1,))
 
 
+class WassersteinLoss(mx.gluon.loss.Loss):
+    def __init__(self, batch_axis=0, **kwargs):
+        super(WassersteinLoss, self).__init__(None, batch_axis, **kwargs)
+
+    def hybrid_forward(self, F, g, r=None):
+        if r is None:
+            return F.mean(-g, axis=self._batch_axis, exclude=True)
+        else:
+            return F.mean(g - r, axis=self._batch_axis, exclude=True)
+
+
 if __name__ == "__main__":
     net_g = Generator(64)
     net_g.initialize(mx.init.Xavier())
     net_d = Discriminator(64)
     net_d.initialize(mx.init.Xavier())
+    loss = WassersteinLoss()
     seeds = mx.nd.random_normal(shape=(4, 128, 1, 1))
     imgs = net_g(seeds)
     print(imgs)
-    print(net_d(imgs))
+    y = net_d(imgs)
+    print(y)
+    print(loss(y))
+    seeds = mx.nd.random_normal(shape=(4, 128, 1, 1))
+    print(loss(net_d(net_g(seeds)), y))
