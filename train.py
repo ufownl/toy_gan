@@ -63,8 +63,8 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
                 L = loss(fake_y, real_y)
                 L.backward()
             trainer_d.step(batch_size)
-            dis_L = mx.nd.mean(L).asscalar()
-            if dis_L != dis_L:
+            batch_L = mx.nd.mean(L).asscalar()
+            if batch_L != batch_L:
                 raise ValueError()
 
             with mx.autograd.record():
@@ -76,9 +76,9 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
             if gen_L != gen_L:
                 raise ValueError()
                 
-            training_L += dis_L
-            print("[Epoch %d  Batch %d]  dis_loss %.10f  gen_loss %.10f  average_loss %.10f  elapsed %.2fs" % (
-                epoch, training_batch, dis_L, gen_L, training_L / training_batch, time.time() - ts
+            training_L += batch_L
+            print("[Epoch %d  Batch %d]  batch_loss %.10f  gen_loss %.10f  average_loss %.10f  elapsed %.2fs" % (
+                epoch, training_batch, batch_L, gen_L, training_L / training_batch, time.time() - ts
             ), flush=True)
 
         avg_L = training_L / training_batch
