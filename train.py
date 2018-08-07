@@ -28,12 +28,10 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
     print("Learning rate:", learning_rate, flush=True)
     trainer_g = mx.gluon.Trainer(net_g.collect_params(), "RMSProp", {
         "learning_rate": learning_rate,
-        "clip_gradient": 5.0
     })
     trainer_d = mx.gluon.Trainer(net_d.collect_params(), "RMSProp", {
         "learning_rate": learning_rate,
-        "clip_weights": 0.01,
-        "clip_gradient": 5.0
+        "clip_weights": 0.01
     })
 
     if os.path.isfile("model/toy_gan.generator.state"):
