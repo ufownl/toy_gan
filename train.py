@@ -5,7 +5,7 @@ import mxnet as mx
 from dataset import load_dataset
 from toy_gan import Generator, Discriminator, WassersteinLoss
 
-def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
+def train(max_epochs, learning_rate, batch_size, seed_size, filters, lmda, context):
     mx.random.seed(int(time.time()))
 
     print("Loading dataset...", flush=True)
@@ -27,11 +27,10 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
 
     print("Learning rate:", learning_rate, flush=True)
     trainer_g = mx.gluon.Trainer(net_g.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate,
+        "learning_rate": learning_rate
     })
     trainer_d = mx.gluon.Trainer(net_d.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate,
-        "clip_weights": 0.01
+        "learning_rate": learning_rate
     })
 
     if os.path.isfile("model/toy_gan.generator.state"):
@@ -59,8 +58,17 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
                 real_y = net_d(real)
                 fake = net_g(seeds)
                 fake_y = net_d(fake.detach())
-                L = loss(fake_y, real_y)
+
+                eps = mx.nd.random_uniform(shape=(batch_size, 1, 1, 1), ctx=context)
+                inter = eps * real + (1 - eps) * fake
+                inter.attach_grad()
+                grad = mx.autograd.grad(net_d(inter), inter, create_graph=True)
+                grad_norm = mx.nd.sqrt(mx.nd.sum(grad[0] ** 2, axis=0, exclude=True))
+                grad_pen = lmda * (grad_norm - 1) ** 2
+
+                L = loss(fake_y, real_y) + grad_pen
                 L.backward()
+
             trainer_d.step(batch_size)
             dis_L = mx.nd.mean(L).asscalar()
             if dis_L != dis_L:
@@ -70,6 +78,7 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
                 y = net_d(fake)
                 L = loss(y)
                 L.backward()
+
             trainer_g.step(batch_size)
             gen_L = mx.nd.mean(L).asscalar()
             if gen_L != gen_L:
@@ -112,6 +121,7 @@ if __name__ == "__main__":
                 batch_size = 256,
                 seed_size = 128,
                 filters = 64,
+                lmda = 10,
                 context = context
             )
             break;
