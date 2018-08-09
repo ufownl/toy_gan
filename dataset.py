@@ -15,8 +15,8 @@ def cook_image(img, size):
     return img.astype("float32") / 127.5 - 1.0
 
 def load_dataset(batch_size, image_size=(64, 64)):
-    lfw_url = 'http://vis-www.cs.umass.edu/lfw/lfw-deepfunneled.tgz'
-    data_path = 'data'
+    lfw_url = "http://vis-www.cs.umass.edu/lfw/lfw-deepfunneled.tgz"
+    data_path = "data"
     if not os.path.exists(data_path):
         data_file = mx.gluon.utils.download(lfw_url)
         with tarfile.open(data_file) as tar:
@@ -27,7 +27,7 @@ def load_dataset(batch_size, image_size=(64, 64)):
     return mx.io.NDArrayIter(mx.nd.concat(*imgs, dim=0), batch_size=batch_size, shuffle=True)
 
 def visualize(img):
-   plt.imshow(((img.transpose((2, 1, 0)) + 1.0) * 127.5).asnumpy().astype(np.uint8))
+   plt.imshow(((img.T + 1.0) * 127.5).asnumpy().astype(np.uint8))
    plt.axis("off")
 
 
