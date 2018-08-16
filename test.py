@@ -13,7 +13,6 @@ def test(batch_size, seed_size, filters, context):
 
     seeds = mx.nd.random_normal(shape=(batch_size, seed_size, 1, 1), ctx=context)
     imgs = net_g(seeds)
-    print(imgs)
     for i in range(imgs.shape[0]):
         plt.subplot(imgs.shape[0] // 8 + 1, 8, i + 1)
         visualize(imgs[i])
