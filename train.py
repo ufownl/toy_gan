@@ -3,9 +3,9 @@ import time
 import argparse
 import mxnet as mx
 from dataset import load_dataset
-from toy_gan import Generator, Discriminator, WassersteinLoss
+from toy_gan import Generator, Discriminator, pull_away_term
 
-def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
+def train(max_epochs, learning_rate, batch_size, seed_size, filters, margin, lmda, context):
     mx.random.seed(int(time.time()))
 
     print("Loading dataset...", flush=True)
@@ -13,7 +13,6 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
 
     net_g = Generator(filters)
     net_d = Discriminator(filters)
-    loss = WassersteinLoss()
 
     if os.path.isfile("model/toy_gan.generator.params"):
         net_g.load_parameters("model/toy_gan.generator.params", ctx=context)
@@ -26,12 +25,11 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
         net_d.initialize(mx.init.Xavier(), ctx=context)
 
     print("Learning rate:", learning_rate, flush=True)
-    trainer_g = mx.gluon.Trainer(net_g.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate,
+    trainer_g = mx.gluon.Trainer(net_g.collect_params(), "Adam", {
+        "learning_rate": learning_rate
     })
-    trainer_d = mx.gluon.Trainer(net_d.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate,
-        "clip_weights": 0.01
+    trainer_d = mx.gluon.Trainer(net_d.collect_params(), "Adam", {
+        "learning_rate": learning_rate
     })
 
     if os.path.isfile("model/toy_gan.generator.state"):
@@ -44,7 +42,8 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
     for epoch in range(max_epochs):
         ts = time.time()
 
-        training_L = 0.0
+        training_dis_L = 0.0
+        training_gen_L = 0.0
         training_batch = 0
         training_set.reset()
 
@@ -55,33 +54,33 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
             seeds = mx.nd.random_normal(shape=(batch_size, seed_size, 1, 1), ctx=context)
 
             with mx.autograd.record():
-                real_y = net_d(real)
+                real_y, real_f = net_d(real)
                 fake = net_g(seeds)
-                fake_y = net_d(fake.detach())
-                L = loss(fake_y, real_y)
+                fake_y, fake_f = net_d(fake.detach())
+                L = real_y + mx.nd.relu(margin - fake_y)
                 L.backward()
             trainer_d.step(batch_size)
-            batch_L = mx.nd.mean(L).asscalar()
-            if batch_L != batch_L:
+            dis_L = mx.nd.mean(L).asscalar()
+            if dis_L != dis_L:
                 raise ValueError()
 
             with mx.autograd.record():
-                y = net_d(fake)
-                L = loss(y)
+                fake_y, fake_f = net_d(fake)
+                L = fake_y + pull_away_term(fake_f) * lmda
                 L.backward()
             trainer_g.step(batch_size)
             gen_L = mx.nd.mean(L).asscalar()
             if gen_L != gen_L:
                 raise ValueError()
                 
-            training_L += batch_L
-            print("[Epoch %d  Batch %d]  batch_loss %.10f  gen_loss %.10f  average_loss %.10f  elapsed %.2fs" % (
-                epoch, training_batch, batch_L, gen_L, training_L / training_batch, time.time() - ts
+            training_dis_L += dis_L
+            training_gen_L += gen_L
+            print("[Epoch %d  Batch %d]  dis_loss %.10f  gen_loss %.10f  elapsed %.2fs" % (
+                epoch, training_batch, dis_L, gen_L, time.time() - ts
             ), flush=True)
 
-        avg_L = training_L / training_batch
-        print("[Epoch %d]  training_loss %.10f  duration %.2fs" % (
-            epoch + 1, avg_L, time.time() - ts
+        print("[Epoch %d]  training_dis_loss %.10f  training_gen_loss %.10f  duration %.2fs" % (
+            epoch + 1, training_dis_L / training_batch, training_gen_L / training_batch, time.time() - ts
         ), flush=True)
 
         net_g.save_parameters("model/toy_gan.generator.params")
@@ -93,7 +92,7 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Start a toy_gan trainer.")
     parser.add_argument("--max_epochs", help="set the max epochs (default: 100)", type=int, default=100)
-    parser.add_argument("--learning_rate", help="set the learning rate (default: 0.00005)", type=float, default=0.00005)
+    parser.add_argument("--learning_rate", help="set the learning rate (default: 0.0002)", type=float, default=0.0002)
     parser.add_argument("--device_id", help="select device that the model using (default: 0)", type=int, default=0)
     parser.add_argument("--gpu", help="using gpu acceleration", action="store_true")
     args = parser.parse_args()
@@ -111,6 +110,8 @@ if __name__ == "__main__":
                 batch_size = 256,
                 seed_size = 128,
                 filters = 64,
+                margin = 30,
+                lmda = 0.1,
                 context = context
             )
             break;
