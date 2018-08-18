@@ -3,9 +3,9 @@ import time
 import argparse
 import mxnet as mx
 from dataset import load_dataset
-from toy_gan import Generator, Discriminator, WassersteinLoss
+from toy_gan import Generator, Discriminator, GeneratorLoss, DiscriminatorLoss
 
-def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
+def train(max_epochs, learning_rate, batch_size, seed_size, filters, lmda, context):
     mx.random.seed(int(time.time()))
 
     print("Loading dataset...", flush=True)
@@ -13,7 +13,8 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
 
     net_g = Generator(filters)
     net_d = Discriminator(filters)
-    loss = WassersteinLoss()
+    loss_g = GeneratorLoss()
+    loss_d = DiscriminatorLoss(lmda)
 
     if os.path.isfile("model/toy_gan.generator.params"):
         net_g.load_parameters("model/toy_gan.generator.params", ctx=context)
@@ -28,10 +29,12 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
     print("Learning rate:", learning_rate, flush=True)
     trainer_g = mx.gluon.Trainer(net_g.collect_params(), "RMSProp", {
         "learning_rate": learning_rate,
+        "wd": 0.00005
     })
     trainer_d = mx.gluon.Trainer(net_d.collect_params(), "RMSProp", {
         "learning_rate": learning_rate,
-        "clip_weights": 0.01
+        "clip_weights": 0.08,
+        "wd": 0.00005
     })
 
     if os.path.isfile("model/toy_gan.generator.state"):
@@ -59,7 +62,7 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
                 real_y = net_d(real)
                 fake = net_g(seeds)
                 fake_y = net_d(fake.detach())
-                L = loss(fake_y, real_y)
+                L = loss_d(real_y, fake_y, real, fake)
                 L.backward()
             trainer_d.step(batch_size)
             dis_L = mx.nd.mean(L).asscalar()
@@ -68,7 +71,7 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
 
             with mx.autograd.record():
                 y = net_d(fake)
-                L = loss(y)
+                L = loss_g(y)
                 L.backward()
             trainer_g.step(batch_size)
             gen_L = mx.nd.mean(L).asscalar()
@@ -112,6 +115,7 @@ if __name__ == "__main__":
                 batch_size = 256,
                 seed_size = 128,
                 filters = 64,
+                lmda = 0.0002,
                 context = context
             )
             break;
