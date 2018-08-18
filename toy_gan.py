@@ -59,15 +59,23 @@ class Discriminator(mx.gluon.nn.Block):
         return y.reshape((-1,))
 
 
-class WassersteinLoss(mx.gluon.loss.Loss):
+class GeneratorLoss(mx.gluon.loss.Loss):
     def __init__(self, batch_axis=0, **kwargs):
-        super(WassersteinLoss, self).__init__(None, batch_axis, **kwargs)
+        super(GeneratorLoss, self).__init__(None, batch_axis, **kwargs)
 
-    def hybrid_forward(self, F, fake_y, real_y=None):
-        if real_y is None:
-            return F.mean(-fake_y, axis=self._batch_axis, exclude=True)
-        else:
-            return F.mean(fake_y - real_y, axis=self._batch_axis, exclude=True)
+    def hybrid_forward(self, F, fake_y):
+        return F.mean(fake_y, axis=self._batch_axis, exclude=True)
+
+
+class DiscriminatorLoss(mx.gluon.loss.Loss):
+    def __init__(self, lmda, batch_axis=0, **kwargs):
+        super(DiscriminatorLoss, self).__init__(None, batch_axis, **kwargs)
+        self._lambda = lmda
+
+    def hybrid_forward(self, F, real_y, fake_y, real_x, fake_x):
+        delta = F.sum(F.abs(real_x - fake_x), axis=self._batch_axis, exclude=True)
+        loss = F.relu(real_y - fake_y + delta * self._lambda)
+        return F.mean(loss, axis=self._batch_axis, exclude=True)
 
 
 if __name__ == "__main__":
@@ -75,7 +83,8 @@ if __name__ == "__main__":
     net_g.initialize(mx.init.Xavier())
     net_d = Discriminator(64)
     net_d.initialize(mx.init.Xavier())
-    loss = WassersteinLoss()
+    loss_g = GeneratorLoss()
+    loss_d = DiscriminatorLoss(0.0002)
     real = mx.nd.zeros((4, 3, 64, 64))
     real_y = net_d(real)
     print("real_y: ", real_y)
@@ -84,5 +93,5 @@ if __name__ == "__main__":
     print("fake: ", fake)
     fake_y = net_d(fake)
     print("fake_y: ", fake_y)
-    print("loss_g: ", loss(fake_y))
-    print("loss_d: ", loss(fake_y, real_y))
+    print("loss_g: ", loss_g(fake_y))
+    print("loss_d: ", loss_d(real_y, fake_y, real, fake))
