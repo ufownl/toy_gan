@@ -3,7 +3,7 @@ import time
 import argparse
 import mxnet as mx
 from dataset import load_dataset
-from toy_gan import Generator, Discriminator, WassersteinLoss
+from toy_gan import Generator, Discriminator, WassersteinLoss, GANInitializer
 
 def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
     mx.random.seed(int(time.time()))
@@ -18,20 +18,19 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
     if os.path.isfile("model/toy_gan.generator.params"):
         net_g.load_parameters("model/toy_gan.generator.params", ctx=context)
     else:
-        net_g.initialize(mx.init.Xavier(), ctx=context)
+        net_g.initialize(GANInitializer(), ctx=context)
 
     if os.path.isfile("model/toy_gan.discriminator.params"):
         net_d.load_parameters("model/toy_gan.discriminator.params", ctx=context)
     else:
-        net_d.initialize(mx.init.Xavier(), ctx=context)
+        net_d.initialize(GANInitializer(), ctx=context)
 
     print("Learning rate:", learning_rate, flush=True)
     trainer_g = mx.gluon.Trainer(net_g.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate,
+        "learning_rate": learning_rate
     })
     trainer_d = mx.gluon.Trainer(net_d.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate,
-        "clip_weights": 0.01
+        "learning_rate": learning_rate
     })
 
     if os.path.isfile("model/toy_gan.generator.state"):
