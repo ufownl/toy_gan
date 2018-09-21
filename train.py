@@ -3,7 +3,7 @@ import time
 import argparse
 import mxnet as mx
 from dataset import load_dataset
-from toy_gan import Generator, Discriminator, WassersteinLoss, GANInitializer
+from toy_gan import Generator, Discriminator, GANInitializer
 
 def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
     mx.random.seed(int(time.time()))
@@ -13,7 +13,7 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
 
     net_g = Generator(filters)
     net_d = Discriminator(filters)
-    loss = WassersteinLoss()
+    loss = mx.gluon.loss.SigmoidBinaryCrossEntropyLoss()
 
     if os.path.isfile("model/toy_gan.generator.params"):
         net_g.load_parameters("model/toy_gan.generator.params", ctx=context)
@@ -26,11 +26,15 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
         net_d.initialize(GANInitializer(), ctx=context)
 
     print("Learning rate:", learning_rate, flush=True)
-    trainer_g = mx.gluon.Trainer(net_g.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate
+    trainer_g = mx.gluon.Trainer(net_g.collect_params(), "Adam", {
+        "learning_rate": learning_rate,
+        "beta1": 0.5,
+        "clip_gradient": 10.0
     })
-    trainer_d = mx.gluon.Trainer(net_d.collect_params(), "RMSProp", {
-        "learning_rate": learning_rate
+    trainer_d = mx.gluon.Trainer(net_d.collect_params(), "Adam", {
+        "learning_rate": learning_rate,
+        "beta1": 0.5,
+        "clip_gradient": 10.0
     })
 
     if os.path.isfile("model/toy_gan.generator.state"):
@@ -56,9 +60,11 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
 
             with mx.autograd.record():
                 real_y = net_d(real)
+                real_L = loss(real_y, mx.nd.ones_like(real_y, ctx=context))
                 fake = net_g(seeds)
                 fake_y = net_d(fake.detach())
-                L = loss(fake_y, real_y)
+                fake_L = loss(fake_y, mx.nd.zeros_like(fake_y, ctx=context))
+                L = real_L + fake_L
                 L.backward()
             trainer_d.step(batch_size)
             dis_L = mx.nd.mean(L).asscalar()
@@ -67,7 +73,7 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
 
             with mx.autograd.record():
                 y = net_d(fake)
-                L = loss(y)
+                L = loss(y, mx.nd.ones_like(y, ctx=context))
                 L.backward()
             trainer_g.step(batch_size)
             gen_L = mx.nd.mean(L).asscalar()
@@ -93,7 +99,7 @@ def train(max_epochs, learning_rate, batch_size, seed_size, filters, context):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Start a toy_gan trainer.")
     parser.add_argument("--max_epochs", help="set the max epochs (default: 100)", type=int, default=100)
-    parser.add_argument("--learning_rate", help="set the learning rate (default: 0.00005)", type=float, default=0.00005)
+    parser.add_argument("--learning_rate", help="set the learning rate (default: 0.0002)", type=float, default=0.0002)
     parser.add_argument("--device_id", help="select device that the model using (default: 0)", type=int, default=0)
     parser.add_argument("--gpu", help="using gpu acceleration", action="store_true")
     args = parser.parse_args()
